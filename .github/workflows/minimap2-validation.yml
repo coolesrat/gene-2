@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - main
+      - feature/minimap2-validation
   pull_request:
     branches:
       - main
