@@ -93,21 +93,8 @@ jobs:
           fi
           LINES=$(wc -l < mapping_minimap2.jsonl)
           echo "mapping_minimap2.jsonl has $LINES lines"
-          python - <<'PY'
-import json
-count=0
-for i, line in enumerate(open('mapping_minimap2.jsonl'), start=1):
-    line=line.strip()
-    if not line:
-        continue
-    try:
-        json.loads(line)
-        count+=1
-    except Exception as e:
-        print(f'Malformed JSON at line {i}: {e}', flush=True)
-        raise
-print(f'Valid JSON lines: {count}', flush=True)
-PY
+          python scripts/validate_mapping.py mapping_minimap2.jsonl
+
 
       - name: Upload mapping artifact
         uses: actions/upload-artifact@v4
