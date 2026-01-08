@@ -24,13 +24,36 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Debug runner environment
+        run: |
+          echo "=== Debug: python and pip versions ==="
+          python --version || true
+          pip --version || true
+          echo "=== Debug: environment vars ==="
+          env | sort || true
+          echo "=== Debug: workspace listing ==="
+          ls -la && df -h || true
+
+      - name: Install system dependencies
+        run: |
+          set -euxo pipefail
+          sudo apt-get update
+          sudo apt-get install -y build-essential python3-dev zlib1g-dev libbz2-dev liblzma-dev pkg-config
+
       - name: Install Python dependencies
         run: |
+          set -euxo pipefail
           python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; else pip install biopython; fi
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          else
+            pip install biopython tqdm
+          fi
+          pip freeze | sed -n '1,200p'
 
       - name: Install minimap2
         run: |
+          set -euxo pipefail
           sudo apt-get update
           sudo apt-get install -y minimap2
           minimap2 --version
