@@ -1,0 +1,90 @@
+name: minimap2-validation
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches:
+      - main
+
+jobs:
+  run-minimap2:
+    name: Run minimap2 validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; else pip install biopython; fi
+
+      - name: Install minimap2
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y minimap2
+          minimap2 --version
+
+      - name: Create small test genome and queries
+        run: |
+          cat > test_ref.fna <<'EOF'
+          >chr1
+          ATGCGTACGTAGCTAGCTAGCTAGCTGACTGACTGACTGACGATCGATCGATCGATCGATCGATC
+          ATGCGTACGTAGCTAGCTAGCTAGCTGACTGACTGACTGACGATCGATCGATCGATCGATCGATC
+          >chr2
+          GCTAGCTAGCTAGCTGACGATCGATCGATGCTAGCTAGCTAGCTAGCTAACGATGCATGCTAGCT
+          EOF
+
+          cat > test_queries.fasta <<'EOF'
+          >q1
+          ATGCGTACGTAGCTAGCTAGCTAGCTGAC
+          >q2
+          GCTAGCTAGCTAGCTGACGATCGATCGAT
+          EOF
+
+      - name: Run mapping with minimap2
+        run: |
+          python scripts/map_sequences.py --genomes test_ref.fna --queries test_queries.fasta --out mapping_minimap2.jsonl --method minimap2 --k 15 --fast
+
+      - name: Show mapping output
+        run: |
+          echo "=== mapping_minimap2.jsonl (head) ==="
+          head -n 200 mapping_minimap2.jsonl || true
+
+      - name: Validate mapping output
+        run: |
+          echo "Validating mapping_minimap2.jsonl"
+          if [ ! -s mapping_minimap2.jsonl ]; then
+            echo "ERROR: mapping_minimap2.jsonl is empty" >&2
+            exit 1
+          fi
+          LINES=$(wc -l < mapping_minimap2.jsonl)
+          echo "mapping_minimap2.jsonl has $LINES lines"
+          python - <<'PY'
+import json
+count=0
+for i, line in enumerate(open('mapping_minimap2.jsonl'), start=1):
+    line=line.strip()
+    if not line:
+        continue
+    try:
+        json.loads(line)
+        count+=1
+    except Exception as e:
+        print(f'Malformed JSON at line {i}: {e}', flush=True)
+        raise
+print(f'Valid JSON lines: {count}', flush=True)
+PY
+
+      - name: Upload mapping artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: minimap2-mapping
+          path: mapping_minimap2.jsonl
